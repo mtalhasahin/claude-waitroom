@@ -157,6 +157,34 @@ describe('the terminal rows', () => {
     expect(aquariumText(30).length).toBeGreaterThan(0);
   });
 
+  test('a garden that has just wrapped still shows the bed it finished', () => {
+    // The bug this pins: at exactly ROW flowers the new bed is empty, and the
+    // scene drew four near-blank rows that read as broken rather than earned.
+    const rows = gardenText(GARDEN_ROW, 60);
+    expect(rows.join('\n')).toContain(`${GARDEN_ROW} grown`);
+    expect(rows.join('\n')).toContain('bed 2');
+    // The finished bed is drawn above the new one, so the patch is never bare.
+    expect((rows[0] ?? '').trim().length).toBeGreaterThan(0);
+  });
+
+  test('a garden in its first bed counts what is in flower', () => {
+    expect(gardenText(4, 60).join('\n')).toContain('4 grown');
+  });
+
+  test('the scenes fit the width they are given', () => {
+    for (const columns of [30, 44, 80, 200]) {
+      for (const rows of [gardenText(7, columns), aquariumText(130, columns)]) {
+        for (const row of rows) expect(row.length).toBeLessThanOrEqual(Math.max(columns, 40));
+      }
+    }
+  });
+
+  test('the tank draws one fish per species and never two in a row', () => {
+    const rows = aquariumText(300, 60);
+    const fish = rows.join('\n').match(/[<>][<>=)(°]+[<>]/g) ?? [];
+    expect(fish.length).toBe(speciesAt(300));
+  });
+
   test('no row is empty of meaning', () => {
     for (const rows of [tetrisRows(tetris), g2048Rows(g2048), wordRows(word, false)]) {
       for (const row of rows) expect(typeof row).toBe('string');

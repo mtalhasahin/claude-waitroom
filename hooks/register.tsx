@@ -236,10 +236,12 @@ function drawingFor(room: Room, bodyColumns: number): Drawing {
 }
 
 /** The same content as rows of text, for the terminal, which draws no vector. */
-function rowsFor(room: Room): string[] {
+function rowsFor(room: Room, bodyColumns: number): string[] {
   const c = configOf(room);
   if (c.mode === 'scene') {
-    return c.scene === 'garden' ? gardenText(room.saved.scenes.garden.flowers) : aquariumText(room.saved.stats.waits);
+    return c.scene === 'garden'
+      ? gardenText(room.saved.scenes.garden.flowers, bodyColumns)
+      : aquariumText(room.saved.stats.waits, bodyColumns);
   }
   if (c.game === 'tetris') return tetrisRows(tetrisOf(room));
   if (c.game === '2048') return g2048Rows(g2048Of(room));
@@ -395,7 +397,7 @@ function drawTerminal($: EngineInterface, room: Room, e: Surfaced<'terminal'>) {
 
   return (
     <Box flexDirection="column" paddingX={1}>
-      {rowsFor(room).map((row) => (
+      {rowsFor(room, e.props.bodyColumns).map((row) => (
         <Text>{row}</Text>
       ))}
       {buttons.length > 0 ? (

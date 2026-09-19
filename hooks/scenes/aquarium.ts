@@ -126,14 +126,73 @@ export function aquariumSvg(input: AquariumInput): string {
   return svg(width, height, aquariumAlt(input.waits), body);
 }
 
-/** What the tank looks like drawn as text, for a surface with no `Svg`. */
-export function aquariumText(waits: number): string[] {
+/** The fish, facing the way they swim; one shape per species, one per row. */
+const SHAPES = ['><>', '<><', '><(>', '<)><', '><°>', '<°><'];
+
+/**
+ * What the tank looks like drawn as text, for a surface with no `Svg`.
+ *
+ * The terminal draws no vector, so the tank is laid out in cells: each species
+ * gets its own depth and its own place across the water, seaweed stands on the
+ * sand, and a bubble or two rises.
+ */
+export function aquariumText(waits: number, columns = 44): string[] {
   const count = speciesAt(waits);
   const more = nextSpeciesIn(waits);
+
+  const width = Math.max(28, Math.min(columns - 2, 74));
+  // One row per species, so no two fish ever land on top of each other.
+  const depth = SHAPES.length;
+  const water: string[][] = Array.from({ length: depth }, () => new Array<string>(width).fill(' '));
+
+  /** Writes into the row; `onlyBlank` leaves whatever is already drawn alone. */
+  const put = (row: number, col: number, text: string, onlyBlank = false): void => {
+    const line = water[row];
+    if (!line) return;
+    for (let i = 0; i < text.length; i++) {
+      const x = col + i;
+      if (x < 0 || x >= width) continue;
+      if (onlyBlank && line[x] !== ' ') continue;
+      line[x] = text[i] as string;
+    }
+  };
+
+  // The weed stands in the outer margins; the fish keep to the open water
+  // between them, so nothing is ever drawn through anything else.
+  const leftEdge = Math.max(2, Math.floor(width * 0.08));
+  const rightEdge = Math.min(width - 2, Math.floor(width * 0.92));
+  const swimFrom = leftEdge + 3;
+  const swimTo = rightEdge - 4;
+
+  for (const [col, tall] of [
+    [leftEdge, 3],
+    [leftEdge + 2, 2],
+    [rightEdge, 4],
+    [rightEdge - 2, 2],
+  ] as const) {
+    for (let h = 0; h < tall; h++) put(depth - 1 - h, col, h === tall - 1 ? 'ψ' : '│');
+  }
+
+  for (let i = 0; i < count; i++) {
+    const shape = SHAPES[i % SHAPES.length] as string;
+    // Laid out from a fixed pattern rather than a random source, so the same
+    // tank draws the same way twice.
+    const span = Math.max(1, swimTo - swimFrom - shape.length);
+    const col = swimFrom + ((i * 11) % span);
+    put(i % depth, col, shape);
+  }
+
+  // Bubbles, rising from two spots on the sand, only where there is water.
+  put(depth - 1, Math.floor(width * 0.34), '°', true);
+  put(depth - 3, Math.floor(width * 0.35), '°', true);
+  put(depth - 2, Math.floor(width * 0.66), '°', true);
+
   return [
-    '~'.repeat(20),
-    Array.from({ length: count }, () => '><> ').join(''),
-    '░'.repeat(20),
-    more === null ? `${count} species` : `${count} species · ${more} to go`,
+    '~'.repeat(width),
+    ...water.map((row) => row.join('').trimEnd()),
+    '░'.repeat(width),
+    more === null
+      ? `${count} species · the tank is full`
+      : `${count} species · ${more} wait${more === 1 ? '' : 's'} to the next`,
   ];
 }

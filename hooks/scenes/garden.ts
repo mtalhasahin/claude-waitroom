@@ -139,13 +139,69 @@ export function gardenSvg(input: GardenInput): string {
   return svg(width, height, gardenAlt(input.flowers), body);
 }
 
-/** What the scene looks like drawn as text, for a surface with no `Svg`. */
-export function gardenText(flowers: number): string[] {
+/** The blossoms, cycled so a bed is not one repeated glyph. */
+const GLYPHS = ['❀', '✿', '❁', '✽', '⚘'];
+
+/**
+ * What the scene looks like drawn as text, for a surface with no `Svg`.
+ *
+ * The terminal is the surface that works today, so this is not an afterthought:
+ * it draws the same garden in cells, with the beds already finished counted
+ * beside the row in flower so a fresh bed never reads as an empty one.
+ */
+export function gardenText(flowers: number, columns = 44): string[] {
   const grown = flowers % ROW;
+  const beds = Math.floor(flowers / ROW);
+
+  const width = Math.max(ROW * 3 + 2, Math.min(columns - 2, 74));
+  const gap = Math.floor((width - 3) / ROW);
+  const at = (i: number): number => 2 + i * gap;
+
+  const sky = new Array<string>(width).fill(' ');
+  const bloom = new Array<string>(width).fill(' ');
+  const stem = new Array<string>(width).fill(' ');
+
+  for (let i = 0; i < grown; i++) {
+    const x = at(i);
+    if (x >= width) break;
+    bloom[x] = GLYPHS[(i + beds * ROW) % GLYPHS.length] as string;
+    stem[x] = '│';
+    // A leaf, alternating sides, so a full bed is not a picket fence.
+    const leafAt = i % 2 === 0 ? x - 1 : x + 1;
+    if (leafAt >= 0 && leafAt < width) stem[leafAt] = i % 2 === 0 ? '╱' : '╲';
+  }
+
+  // The one this wait is growing: a sprout, plainly younger than the rest.
+  const next = at(grown);
+  if (next < width) {
+    stem[next] = '╷';
+    bloom[next] = '·';
+  }
+
+  // The bed just finished, kept in view behind this one. Without it a garden
+  // that has just wrapped reads as an empty patch rather than a milestone.
+  if (beds > 0) {
+    for (let i = 0; i < ROW; i++) {
+      const x = at(i);
+      if (x < width) sky[x] = '˙';
+    }
+  } else {
+    // A cloud, for the same reason the vector scene has one.
+    const cloudAt = Math.max(0, Math.min(width - 4, Math.floor(width * 0.62)));
+    sky[cloudAt] = '─';
+    sky[cloudAt + 1] = '─';
+  }
+
+  const tally =
+    beds > 0
+      ? `${flowers} grown · bed ${beds + 1}, ${grown} in flower`
+      : `${grown} grown · one more coming up`;
+
   return [
-    ' '.repeat(grown * 2) + '.',
-    Array.from({ length: grown }, () => '❀ ').join('') + '·',
-    '▔'.repeat(Math.max(2, ROW * 2)),
-    `${flowers} grown`,
+    sky.join('').trimEnd(),
+    bloom.join('').trimEnd(),
+    stem.join('').trimEnd(),
+    '▔'.repeat(width),
+    tally,
   ];
 }
