@@ -1,0 +1,956 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--
+  Waitroom, as a page you can open anywhere.
+
+  The same three games the plugin plays, with a real keyboard and no wait to
+  spend. One self-contained file: no build, no server, and nothing leaves the
+  browser beyond the webfont request. Open it from disk, or serve it from
+  wherever you like.
+
+  Scores live in this browser's localStorage. Published as a Claude Artifact the
+  same file also reaches that store's durable one, which is why the script asks
+  whether the host offers it and carries on when it does not.
+-->
+<style>
+  :root { color-scheme: light dark; }
+  html, body { margin: 0; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<title>Waitroom</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --paper: #eef1ec;
+    --surface: #f7f9f6;
+    --sunken: #e3e8e0;
+    --line: #d4dbd2;
+    --ink: #1c2420;
+    --muted: #6f7d76;
+    --accent: #5f8f56;
+    --accent-soft: #dfeadb;
+    --warn: #b4694f;
+
+    --tile-2: #e9e4d8;
+    --tile-4: #e5dcc6;
+    --tile-8: #e8a86f;
+    --tile-16: #e29255;
+    --tile-32: #dd7b4c;
+    --tile-64: #d4623a;
+    --tile-128: #ddc266;
+    --tile-256: #dabb51;
+    --tile-512: #d7b33f;
+    --tile-big: #d2aa2a;
+    --tile-ink-light: #6d6659;
+    --tile-ink-dark: #fbf8f2;
+
+    --hit: #5f8f56;
+    --near: #c2a74e;
+    --miss: #8d9a93;
+
+    --p-i: #6ba7c4;
+    --p-o: #d9bd5c;
+    --p-t: #a98bc6;
+    --p-l: #dd9464;
+    --p-s: #77b583;
+
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(28, 36, 32, .06), 0 6px 18px rgba(28, 36, 32, .05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #161a18;
+      --surface: #1e2422;
+      --sunken: #141817;
+      --line: #2d3532;
+      --ink: #e4e9e5;
+      --muted: #8b9a92;
+      --accent: #7fb473;
+      --accent-soft: #24302343;
+      --warn: #d08a6e;
+      --tile-2: #333a34;
+      --tile-4: #3c4339;
+      --tile-ink-light: #cfd6cd;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .25);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #161a18;
+    --surface: #1e2422;
+    --sunken: #141817;
+    --line: #2d3532;
+    --ink: #e4e9e5;
+    --muted: #8b9a92;
+    --accent: #7fb473;
+    --accent-soft: #24302343;
+    --warn: #d08a6e;
+    --tile-2: #333a34;
+    --tile-4: #3c4339;
+    --tile-ink-light: #cfd6cd;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .25);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 680px;
+    margin: 0 auto;
+    padding-inline: 16px;
+    padding-block: 28px 44px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+
+  header { display: flex; flex-direction: column; gap: 6px; }
+
+  .room {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0;
+  }
+
+  .lede { margin: 0; color: var(--muted); max-width: 58ch; font-size: 14px; }
+
+  nav { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .tab {
+    font: inherit;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    letter-spacing: .04em;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  .tab:hover { color: var(--ink); border-color: var(--muted); }
+  .tab[aria-selected="true"] {
+    color: var(--surface);
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .tab:focus-visible, .ctrl:focus-visible, .key:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* `display: flex` below would otherwise beat the browser's own rule for
+     `hidden`, and every game would be on screen at once. */
+  .stage[hidden] { display: none; }
+
+  .stage {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    align-items: center;
+  }
+
+  .scoreline {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+  }
+  .scoreline b { color: var(--ink); font-weight: 600; }
+
+  .board { display: grid; gap: 4px; touch-action: manipulation; }
+
+  /* 2048 */
+  #board-2048 { grid-template-columns: repeat(4, 62px); }
+  .cell {
+    width: 62px; height: 62px;
+    border-radius: 6px;
+    background: var(--sunken);
+    display: grid; place-items: center;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 22px;
+    color: var(--tile-ink-light);
+    transition: background .12s ease, color .12s ease;
+  }
+  .cell.v2 { background: var(--tile-2); }
+  .cell.v4 { background: var(--tile-4); }
+  .cell.v8 { background: var(--tile-8); color: var(--tile-ink-dark); }
+  .cell.v16 { background: var(--tile-16); color: var(--tile-ink-dark); }
+  .cell.v32 { background: var(--tile-32); color: var(--tile-ink-dark); }
+  .cell.v64 { background: var(--tile-64); color: var(--tile-ink-dark); }
+  .cell.v128 { background: var(--tile-128); color: var(--tile-ink-dark); font-size: 19px; }
+  .cell.v256 { background: var(--tile-256); color: var(--tile-ink-dark); font-size: 19px; }
+  .cell.v512 { background: var(--tile-512); color: var(--tile-ink-dark); font-size: 19px; }
+  .cell.vbig { background: var(--tile-big); color: var(--tile-ink-dark); font-size: 16px; }
+
+  /* tetris */
+  #board-tetris { grid-template-columns: repeat(12, 24px); gap: 2px; }
+  .brick {
+    width: 24px; height: 24px;
+    border-radius: 4px;
+    background: var(--sunken);
+  }
+  .brick.p1 { background: var(--p-i); }
+  .brick.p2 { background: var(--p-o); }
+  .brick.p3 { background: var(--p-t); }
+  .brick.p4 { background: var(--p-l); }
+  .brick.p5 { background: var(--p-s); }
+  .brick.ghost {
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px var(--muted);
+    opacity: .55;
+  }
+
+  /* word */
+  #board-word { grid-template-columns: repeat(5, 48px); gap: 5px; }
+  .slot {
+    width: 48px; height: 48px;
+    border-radius: 5px;
+    background: var(--sunken);
+    border: 1.5px solid transparent;
+    display: grid; place-items: center;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-weight: 600; font-size: 22px;
+    color: var(--ink);
+    text-transform: uppercase;
+  }
+  .slot.typing { background: transparent; border-color: var(--muted); }
+  .slot.hit { background: var(--hit); color: #fff; }
+  .slot.near { background: var(--near); color: #fff; }
+  .slot.miss { background: var(--miss); color: #fff; }
+
+  .keyboard { display: flex; flex-direction: column; gap: 5px; align-items: center; width: 100%; }
+  .krow { display: flex; gap: 4px; justify-content: center; }
+  .key {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px; font-weight: 500;
+    min-width: 28px; height: 36px;
+    padding-inline: 6px;
+    border-radius: 5px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    text-transform: uppercase;
+  }
+  .key.wide { min-width: 48px; font-size: 11px; }
+  .key.hit { background: var(--hit); color: #fff; border-color: var(--hit); }
+  .key.near { background: var(--near); color: #fff; border-color: var(--near); }
+  .key.miss { background: var(--miss); color: #fff; border-color: var(--miss); opacity: .65; }
+
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .ctrl {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 14px;
+    min-width: 46px; height: 40px;
+    padding-inline: 12px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .ctrl:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .ctrl.primary { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+  .hint {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+    min-height: 1.4em;
+  }
+  .hint.alert { color: var(--warn); }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-top: 16px;
+    color: var(--muted);
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  footer code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px;
+    background: var(--sunken);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  .saving {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: .06em;
+    color: var(--muted);
+  }
+
+  @media (max-width: 460px) {
+    #board-2048 { grid-template-columns: repeat(4, 56px); }
+    .cell { width: 56px; height: 56px; font-size: 20px; }
+    #board-tetris { grid-template-columns: repeat(12, 20px); }
+    .brick { width: 20px; height: 20px; }
+    #board-word { grid-template-columns: repeat(5, 42px); }
+    .slot { width: 42px; height: 42px; font-size: 19px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1 class="room">Waitroom</h1>
+    <p class="lede">
+      Three turn-based games for the gaps between prompts. No clock, no time pressure &mdash;
+      a wait that runs long is a longer think, not a lost game. Progress is kept.
+    </p>
+  </header>
+
+  <nav role="tablist" aria-label="Games">
+    <button class="tab" role="tab" id="tab-2048" data-game="2048" aria-selected="true">2048</button>
+    <button class="tab" role="tab" id="tab-tetris" data-game="tetris" aria-selected="false">tetris</button>
+    <button class="tab" role="tab" id="tab-word" data-game="word" aria-selected="false">word</button>
+  </nav>
+
+  <section class="stage" id="stage-2048" role="tabpanel" aria-labelledby="tab-2048">
+    <div class="scoreline"><span>score <b id="s2048">0</b></span><span>best <b id="b2048">0</b></span></div>
+    <div class="board" id="board-2048"></div>
+    <div class="controls">
+      <button class="ctrl" data-move="up" aria-label="Up">&#9650;</button>
+      <button class="ctrl" data-move="left" aria-label="Left">&#9664;</button>
+      <button class="ctrl" data-move="down" aria-label="Down">&#9660;</button>
+      <button class="ctrl" data-move="right" aria-label="Right">&#9654;</button>
+      <button class="ctrl" id="new-2048">new</button>
+    </div>
+    <p class="hint" id="hint-2048">arrow keys or W A S D</p>
+  </section>
+
+  <section class="stage" id="stage-tetris" role="tabpanel" aria-labelledby="tab-tetris" hidden>
+    <div class="scoreline"><span>lines <b id="stetris">0</b></span><span>best <b id="btetris">0</b></span></div>
+    <div class="board" id="board-tetris"></div>
+    <div class="controls">
+      <button class="ctrl" data-t="left" aria-label="Left">&#9664;</button>
+      <button class="ctrl" data-t="rotate" aria-label="Rotate">&#8635;</button>
+      <button class="ctrl" data-t="right" aria-label="Right">&#9654;</button>
+      <button class="ctrl primary" data-t="drop">drop</button>
+      <button class="ctrl" id="new-tetris">new</button>
+    </div>
+    <p class="hint" id="hint-tetris">A D to move &middot; W to rotate &middot; S or space to drop</p>
+  </section>
+
+  <section class="stage" id="stage-word" role="tabpanel" aria-labelledby="tab-word" hidden>
+    <div class="scoreline"><span>solved <b id="sword">0</b> of <b id="pword">0</b></span><span id="leftword">6 guesses left</span></div>
+    <div class="board" id="board-word"></div>
+    <div class="keyboard" id="keyboard"></div>
+    <p class="hint" id="hint-word">type a five-letter word, then Enter</p>
+  </section>
+
+  <footer>
+    <div>
+      The same games run inside Claude Code as the <code>waitroom</code> plugin, where one wait is
+      one move. Here there is no wait to spend, so play as long as you like.
+    </div>
+    <div class="saving" id="saving">&nbsp;</div>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ------------------------------------------------------------- words --- */
+
+  var WORDS = ("about above abuse actor acute admit adopt adult after again agent agree ahead alarm album alert alike alive allow alone " +
+    "along alter among anger angle angry apart apple apply arena argue arise armed array arrow aside asset avoid awake award aware badly " +
+    "baker bases basic basis beach began begin begun being below bench birth black blame blank blast blind block blood board boost booth " +
+    "bound brain brand brass brave bread break breed brief bring broad broke brown brush build built bunch burst buyer cabin cable candy " +
+    "canal cargo carry carve catch cause cease chain chair chalk chaos charm chart chase cheap check chest chief child chose chunk civil " +
+    "claim class clean clear clerk click cliff climb clock close cloth cloud coach coast could count court cover crack craft crash crazy " +
+    "cream crime cross crowd crown crude curve cycle daily dance dated dealt death debut decay delay dense depth diary dirty doing doubt " +
+    "dozen draft drama drank drawn dream dress dried drink drive drove dying eager early earth eight elect elite empty ended enemy enjoy " +
+    "enter entry equal error essay event every exact exist extra faced facts faith false fancy fatal fault favor feast fence fever fewer " +
+    "fiber field fifth fifty fight final first fixed flame flash fleet flesh float flood floor flour fluid focus force forth forty forum " +
+    "found frame fraud fresh front frost fruit fully funny giant given giver glass globe glory glove goods grace grade grain grand grant " +
+    "grape graph grass grave great green greet grief grill gross group grown guard guess guest guide guilt happy harsh haste hatch heard " +
+    "heart heavy hedge hello hence hobby holds honey honor horse hotel house human humor hurry ideal image imply index inner input irony " +
+    "issue ivory jeans jelly jewel joint jolly judge juice keeps kneel knife knock known label labor large laser later laugh layer learn " +
+    "lease least leave legal lemon level lever light limit linen links liver lives local lodge logic loose lorry loser loved lower loyal " +
+    "lucky lunar lunch lying magic major maker march match maybe mayor meant medal media melon mercy merge merit metal meter midst might " +
+    "minor minus mixed model moist money month moral motor mount mouse mouth movie music naked named nasty naval nerve never newly night " +
+    "noble noise north noted novel nurse ocean offer often onion opera orbit order organ other ought ounce outer owner paint panel panic " +
+    "paper party pasta patch pause peace peach pearl pedal penny phase phone photo piano piece pilot pitch pixel place plain plane plant " +
+    "plate plaza point polar porch pound power press price pride prime print prior prize probe proof proud prove pulse punch pupil purse " +
+    "queen query quest queue quick quiet quilt quite quota quote radar radio raise rally ranch range rapid ratio reach react ready realm " +
+    "rebel refer reign relax relay renew repay reply rider ridge rifle right rigid rival river roast robin robot rocky rough round route " +
+    "royal rugby ruler rural sadly saint salad sales salon sauce scale scare scene scent scope score scout screw seats seize sense serve " +
+    "setup seven shade shaft shake shall shame shape share sharp sheep sheet shelf shell shift shine shirt shock shoot shore short shown " +
+    "sight silly since sixth sixty skill skirt sleep slice slide slope small smart smell smile smoke snake sober solar solid solve sorry " +
+    "sound south space spare speak speed spell spend spent spice spine spite split spoke sport spray squad stack staff stage stain stake " +
+    "stamp stand stare start state steam steel steep steer stern stick stiff still stock stone stood store storm story stove strap straw " +
+    "strip stuck study stuff style sugar suite sunny super sweat sweep sweet swift swing sword table taken tales talks taste taxes teach " +
+    "teams tears teeth tempo tenth thank theft their theme there these thick thing think third those three threw throw thumb tiger tight " +
+    "timer tired title toast today token tooth topic torch total touch tough tower towns trace track trade trail train trait trash treat " +
+    "trend trial tribe trick tried tries truck truly trunk trust truth tulip twice twist uncle under union unite unity until upper upset " +
+    "urban usage usual vague valid value valve vapor vault venue verse video villa vinyl viral virus visit vital vivid vocal voice voted " +
+    "vowel wagon waist waste watch water waved weary weave wedge weigh weird whale wheat wheel where which while white whole whose widen " +
+    "widow width windy witch woman women world worry worse worst worth would wound wrist write wrong wrote yacht yield young yours youth " +
+    "zebra").split(" ");
+
+  var WORDSET = Object.create(null);
+  for (var wi = 0; wi < WORDS.length; wi++) WORDSET[WORDS[wi].toUpperCase()] = true;
+
+  /* -------------------------------------------------------------- state --- */
+
+  var TRIES = 6, LEN = 5;
+  var COLS = 12, ROWS = 9;
+
+  var state = {
+    tab: "2048",
+    g2048: null,
+    tetris: null,
+    word: null
+  };
+
+  var rand = Math.random;
+
+  /* ---------------------------------------------------------------- 2048 --- */
+
+  function slideLine(line) {
+    var tiles = [], i;
+    for (i = 0; i < line.length; i++) if (line[i] !== 0) tiles.push(line[i]);
+    var out = [], gained = 0;
+    for (i = 0; i < tiles.length; i++) {
+      if (tiles[i + 1] === tiles[i]) { out.push(tiles[i] * 2); gained += tiles[i] * 2; i++; }
+      else out.push(tiles[i]);
+    }
+    while (out.length < line.length) out.push(0);
+    return { line: out, gained: gained };
+  }
+
+  function lineIndices(dir, n) {
+    var idx = [];
+    for (var i = 0; i < 4; i++) {
+      if (dir === "left") idx.push(n * 4 + i);
+      else if (dir === "right") idx.push(n * 4 + (3 - i));
+      else if (dir === "up") idx.push(i * 4 + n);
+      else idx.push((3 - i) * 4 + n);
+    }
+    return idx;
+  }
+
+  function move2048(grid, dir) {
+    var out = grid.slice(), gained = 0, moved = false;
+    for (var n = 0; n < 4; n++) {
+      var idx = lineIndices(dir, n);
+      var before = idx.map(function (i) { return out[i]; });
+      var res = slideLine(before);
+      gained += res.gained;
+      for (var i = 0; i < 4; i++) {
+        if (out[idx[i]] !== res.line[i]) moved = true;
+        out[idx[i]] = res.line[i];
+      }
+    }
+    return { grid: out, gained: gained, moved: moved };
+  }
+
+  function addTile(grid) {
+    var empty = [];
+    for (var i = 0; i < 16; i++) if (grid[i] === 0) empty.push(i);
+    if (!empty.length) return grid;
+    var out = grid.slice();
+    out[empty[Math.floor(rand() * empty.length)]] = rand() < 0.9 ? 2 : 4;
+    return out;
+  }
+
+  function dead2048(grid) {
+    for (var i = 0; i < 16; i++) if (grid[i] === 0) return false;
+    for (var r = 0; r < 4; r++) for (var c = 0; c < 4; c++) {
+      var here = grid[r * 4 + c];
+      if (c + 1 < 4 && here === grid[r * 4 + c + 1]) return false;
+      if (r + 1 < 4 && here === grid[(r + 1) * 4 + c]) return false;
+    }
+    return true;
+  }
+
+  function new2048(best) {
+    var grid = [];
+    for (var i = 0; i < 16; i++) grid.push(0);
+    grid = addTile(addTile(grid));
+    return { grid: grid, score: 0, best: best || 0, over: false };
+  }
+
+  function play2048(dir) {
+    var s = state.g2048;
+    if (s.over) { state.g2048 = new2048(s.best); render(); save(); return; }
+    var res = move2048(s.grid, dir);
+    if (!res.moved) { say("hint-2048", "that move changes nothing", true); return; }
+    s.grid = addTile(res.grid);
+    s.score += res.gained;
+    if (s.score > s.best) s.best = s.score;
+    s.over = dead2048(s.grid);
+    say("hint-2048", s.over ? "no moves left — press any arrow for a new game" : "", s.over);
+    render(); save();
+  }
+
+  /* -------------------------------------------------------------- tetris --- */
+
+  var SHAPES = {
+    I: [[1, 1, 1, 1]],
+    O: [[1, 1], [1, 1]],
+    T: [[1, 1, 1], [0, 1, 0]],
+    L: [[1, 0], [1, 0], [1, 1]],
+    S: [[0, 1, 1], [1, 1, 0]]
+  };
+  var KINDS = ["I", "O", "T", "L", "S"];
+
+  function emptyBoard() { var b = []; for (var i = 0; i < COLS * ROWS; i++) b.push(0); return b; }
+
+  function rotate(shape) {
+    var h = shape.length, w = shape[0].length, out = [];
+    for (var x = 0; x < w; x++) {
+      var row = [];
+      for (var y = h - 1; y >= 0; y--) row.push(shape[y][x]);
+      out.push(row);
+    }
+    return out;
+  }
+
+  function collides(board, shape, x, y) {
+    for (var r = 0; r < shape.length; r++) for (var c = 0; c < shape[r].length; c++) {
+      if (!shape[r][c]) continue;
+      var bx = x + c, by = y + r;
+      if (bx < 0 || bx >= COLS || by >= ROWS) return true;
+      if (by >= 0 && board[by * COLS + bx] !== 0) return true;
+    }
+    return false;
+  }
+
+  function dropY(board, shape, x, y) { while (!collides(board, shape, x, y + 1)) y++; return y; }
+
+  function spawn() {
+    var kind = KINDS[Math.floor(rand() * KINDS.length)];
+    var shape = SHAPES[kind].map(function (r) { return r.slice(); });
+    return { kind: kind, shape: shape, x: Math.floor((COLS - shape[0].length) / 2), y: 0 };
+  }
+
+  function newTetris(best) {
+    return { board: emptyBoard(), piece: spawn(), lines: 0, best: best || 0 };
+  }
+
+  function clearLines(board) {
+    var kept = [], cleared = 0, r, c;
+    for (r = 0; r < ROWS; r++) {
+      var row = board.slice(r * COLS, r * COLS + COLS), full = true;
+      for (c = 0; c < COLS; c++) if (!row[c]) { full = false; break; }
+      if (full) cleared++; else kept.push(row);
+    }
+    var out = [];
+    for (r = 0; r < cleared; r++) for (c = 0; c < COLS; c++) out.push(0);
+    for (r = 0; r < kept.length; r++) out = out.concat(kept[r]);
+    return { board: out, cleared: cleared };
+  }
+
+  function ensurePiece(s) {
+    if (s.piece) return;
+    var piece = spawn();
+    if (collides(s.board, piece.shape, piece.x, piece.y)) {
+      if (s.lines > s.best) s.best = s.lines;
+      s.board = emptyBoard();
+      s.lines = 0;
+      say("hint-tetris", "board filled — starting over", true);
+    }
+    s.piece = spawn();
+  }
+
+  function playTetris(action) {
+    var s = state.tetris;
+    ensurePiece(s);
+    var p = s.piece;
+    if (action === "left" || action === "right") {
+      var nx = p.x + (action === "left" ? -1 : 1);
+      if (!collides(s.board, p.shape, nx, p.y)) p.x = nx;
+    } else if (action === "rotate") {
+      var shape = rotate(p.shape);
+      var kicks = [0, -1, 1, -2, 2];
+      for (var k = 0; k < kicks.length; k++) {
+        if (!collides(s.board, shape, p.x + kicks[k], p.y)) { p.shape = shape; p.x += kicks[k]; break; }
+      }
+    } else {
+      var y = dropY(s.board, p.shape, p.x, p.y);
+      for (var r = 0; r < p.shape.length; r++) for (var c = 0; c < p.shape[r].length; c++) {
+        if (!p.shape[r][c]) continue;
+        var by = y + r, bx = p.x + c;
+        if (by >= 0 && by < ROWS && bx >= 0 && bx < COLS) s.board[by * COLS + bx] = KINDS.indexOf(p.kind) + 1;
+      }
+      var res = clearLines(s.board);
+      s.board = res.board;
+      s.lines += res.cleared;
+      if (s.lines > s.best) s.best = s.lines;
+      s.piece = null;
+      ensurePiece(s);
+    }
+    render(); save();
+  }
+
+  /* ---------------------------------------------------------------- word --- */
+
+  function newWord(carry) {
+    return {
+      word: WORDS[Math.floor(rand() * WORDS.length)].toUpperCase(),
+      guesses: [],
+      typing: "",
+      played: carry ? carry.played : 0,
+      solved: carry ? carry.solved : 0
+    };
+  }
+
+  function scoreGuess(answer, guess) {
+    var marks = [], pool = Object.create(null), i, ch;
+    for (i = 0; i < LEN; i++) marks.push("miss");
+    for (i = 0; i < LEN; i++) {
+      if (guess[i] === answer[i]) marks[i] = "hit";
+      else { ch = answer[i]; pool[ch] = (pool[ch] || 0) + 1; }
+    }
+    for (i = 0; i < LEN; i++) {
+      if (marks[i] === "hit") continue;
+      ch = guess[i];
+      if (pool[ch] > 0) { marks[i] = "near"; pool[ch]--; }
+    }
+    return marks;
+  }
+
+  function wordDone(s) {
+    return s.guesses.length >= TRIES || s.guesses[s.guesses.length - 1] === s.word;
+  }
+
+  function submitGuess() {
+    var s = state.word;
+    if (wordDone(s)) {
+      state.word = newWord({
+        played: s.played + 1,
+        solved: s.solved + (s.guesses[s.guesses.length - 1] === s.word ? 1 : 0)
+      });
+      render(); save();
+      return;
+    }
+    var guess = s.typing.toUpperCase();
+    if (guess.length !== LEN) { say("hint-word", LEN + " letters, please", true); return; }
+    if (!WORDSET[guess]) { say("hint-word", "not in the word list", true); return; }
+    if (s.guesses.indexOf(guess) !== -1) { say("hint-word", "already guessed", true); return; }
+    s.guesses.push(guess);
+    s.typing = "";
+    if (wordDone(s)) {
+      var won = s.guesses[s.guesses.length - 1] === s.word;
+      say("hint-word", won ? "solved — Enter for a new word" : "the word was " + s.word + " — Enter for a new word", !won);
+    } else {
+      say("hint-word", "");
+    }
+    render(); save();
+  }
+
+  function letterState(s) {
+    var rank = { miss: 0, near: 1, hit: 2 }, out = Object.create(null);
+    for (var g = 0; g < s.guesses.length; g++) {
+      var marks = scoreGuess(s.word, s.guesses[g]);
+      for (var i = 0; i < LEN; i++) {
+        var ch = s.guesses[g][i];
+        if (out[ch] === undefined || rank[marks[i]] > rank[out[ch]]) out[ch] = marks[i];
+      }
+    }
+    return out;
+  }
+
+  /* -------------------------------------------------------------- render --- */
+
+  var el = function (id) { return document.getElementById(id); };
+  var hintTimer = null;
+
+  function say(id, text, alert) {
+    var node = el(id);
+    if (!node) return;
+    node.textContent = text || defaultHint(id);
+    node.className = "hint" + (alert && text ? " alert" : "");
+    if (hintTimer) clearTimeout(hintTimer);
+    if (text) hintTimer = setTimeout(function () {
+      node.textContent = defaultHint(id);
+      node.className = "hint";
+    }, 3500);
+  }
+
+  function defaultHint(id) {
+    if (id === "hint-2048") return "arrow keys or W A S D";
+    if (id === "hint-tetris") return "A D to move · W to rotate · S or space to drop";
+    return "type a five-letter word, then Enter";
+  }
+
+  function tileClass(v) {
+    if (!v) return "cell";
+    if (v >= 1024) return "cell vbig";
+    return "cell v" + v;
+  }
+
+  function render2048() {
+    var s = state.g2048, board = el("board-2048");
+    if (board.childElementCount !== 16) {
+      board.textContent = "";
+      for (var i = 0; i < 16; i++) board.appendChild(document.createElement("div"));
+    }
+    for (var j = 0; j < 16; j++) {
+      var cell = board.children[j], v = s.grid[j];
+      cell.className = tileClass(v);
+      cell.textContent = v ? String(v) : "";
+    }
+    el("s2048").textContent = s.score;
+    el("b2048").textContent = s.best;
+  }
+
+  function renderTetris() {
+    var s = state.tetris, board = el("board-tetris");
+    if (board.childElementCount !== COLS * ROWS) {
+      board.textContent = "";
+      for (var i = 0; i < COLS * ROWS; i++) board.appendChild(document.createElement("div"));
+    }
+    var ghost = {}, live = {};
+    if (s.piece) {
+      var land = dropY(s.board, s.piece.shape, s.piece.x, s.piece.y);
+      for (var r = 0; r < s.piece.shape.length; r++) for (var c = 0; c < s.piece.shape[r].length; c++) {
+        if (!s.piece.shape[r][c]) continue;
+        var gx = s.piece.x + c;
+        if (land + r >= 0) ghost[(land + r) * COLS + gx] = true;
+        if (s.piece.y + r >= 0) live[(s.piece.y + r) * COLS + gx] = KINDS.indexOf(s.piece.kind) + 1;
+      }
+    }
+    for (var k = 0; k < COLS * ROWS; k++) {
+      var brick = board.children[k], cls = "brick";
+      if (live[k]) cls += " p" + live[k];
+      else if (s.board[k]) cls += " p" + s.board[k];
+      else if (ghost[k]) cls += " ghost";
+      brick.className = cls;
+    }
+    el("stetris").textContent = s.lines;
+    el("btetris").textContent = s.best;
+  }
+
+  var ROWS_KB = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
+
+  function renderWord() {
+    var s = state.word, board = el("board-word");
+    if (board.childElementCount !== LEN * TRIES) {
+      board.textContent = "";
+      for (var i = 0; i < LEN * TRIES; i++) board.appendChild(document.createElement("div"));
+    }
+    var done = wordDone(s);
+    for (var r = 0; r < TRIES; r++) {
+      var guess = s.guesses[r];
+      var marks = guess ? scoreGuess(s.word, guess) : null;
+      var typingRow = !guess && r === s.guesses.length && !done;
+      for (var c = 0; c < LEN; c++) {
+        var slot = board.children[r * LEN + c], cls = "slot", ch = "";
+        if (guess) { cls += " " + marks[c]; ch = guess[c]; }
+        else if (typingRow) { ch = s.typing[c] || ""; if (ch) cls += " typing"; }
+        slot.className = cls;
+        slot.textContent = ch;
+      }
+    }
+
+    var kb = el("keyboard");
+    if (!kb.childElementCount) {
+      for (var q = 0; q < ROWS_KB.length; q++) {
+        var row = document.createElement("div");
+        row.className = "krow";
+        if (q === 2) row.appendChild(makeKey("⏎", "enter", true));
+        for (var m = 0; m < ROWS_KB[q].length; m++) row.appendChild(makeKey(ROWS_KB[q][m], ROWS_KB[q][m], false));
+        if (q === 2) row.appendChild(makeKey("⌫", "back", true));
+        kb.appendChild(row);
+      }
+    }
+    var marksByLetter = letterState(s);
+    var keys = kb.querySelectorAll("[data-letter]");
+    for (var n = 0; n < keys.length; n++) {
+      var letter = keys[n].getAttribute("data-letter");
+      var mark = marksByLetter[letter];
+      keys[n].className = "key" + (mark ? " " + mark : "");
+    }
+
+    el("sword").textContent = s.solved;
+    el("pword").textContent = s.played;
+    el("leftword").textContent = done
+      ? (s.guesses[s.guesses.length - 1] === s.word ? "solved" : "the word was " + s.word)
+      : (TRIES - s.guesses.length) + " guesses left";
+  }
+
+  function makeKey(label, value, wide) {
+    var b = document.createElement("button");
+    b.className = "key" + (wide ? " wide" : "");
+    b.type = "button";
+    b.textContent = label;
+    if (!wide) b.setAttribute("data-letter", value);
+    b.setAttribute("data-key", value);
+    return b;
+  }
+
+  function render() {
+    var games = ["2048", "tetris", "word"];
+    for (var i = 0; i < games.length; i++) {
+      var on = games[i] === state.tab;
+      el("stage-" + games[i]).hidden = !on;
+      el("tab-" + games[i]).setAttribute("aria-selected", on ? "true" : "false");
+    }
+    if (state.tab === "2048") render2048();
+    else if (state.tab === "tetris") renderTetris();
+    else renderWord();
+  }
+
+  /* ------------------------------------------------------------ persist --- */
+
+  var db = null, saveTimer = null, savedOnce = false;
+
+  function snapshot() {
+    return {
+      tab: state.tab,
+      g2048: state.g2048,
+      tetris: state.tetris,
+      word: state.word
+    };
+  }
+
+  function note(text) { el("saving").textContent = text; }
+
+  function save() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      var body = snapshot();
+      try { localStorage.setItem("waitroom", JSON.stringify(body)); } catch (e) { /* private window */ }
+      if (!db) { note(savedOnce ? "kept in this browser" : ""); savedOnce = true; return; }
+      db.doc("waitroom/state").set(body).then(function () {
+        savedOnce = true;
+        note("saved");
+      }, function () {
+        note("kept in this browser");
+      });
+    }, 400);
+  }
+
+  function adopt(body) {
+    if (!body || typeof body !== "object") return false;
+    var ok = false;
+    if (body.g2048 && Array.isArray(body.g2048.grid) && body.g2048.grid.length === 16) { state.g2048 = body.g2048; ok = true; }
+    if (body.tetris && Array.isArray(body.tetris.board) && body.tetris.board.length === COLS * ROWS) { state.tetris = body.tetris; ok = true; }
+    if (body.word && typeof body.word.word === "string" && body.word.word.length === LEN) {
+      state.word = body.word;
+      if (typeof state.word.typing !== "string") state.word.typing = "";
+      ok = true;
+    }
+    if (typeof body.tab === "string" && ["2048", "tetris", "word"].indexOf(body.tab) !== -1) state.tab = body.tab;
+    return ok;
+  }
+
+  function start() {
+    if (!state.g2048) state.g2048 = new2048(0);
+    if (!state.tetris) state.tetris = newTetris(0);
+    if (!state.word) state.word = newWord(null);
+    render();
+  }
+
+  // Draw immediately from whatever is local, then let the store correct it.
+  try { adopt(JSON.parse(localStorage.getItem("waitroom") || "null")); } catch (e) { /* ignore */ }
+  start();
+
+  if (window.claude && window.claude.use) {
+    window.claude.use("db").then(function (store) {
+      if (!store) { note("kept in this browser"); return; }
+      db = store;
+      return db.doc("waitroom/state").get().then(function (snap) {
+        if (snap.exists && adopt(snap.data())) { start(); note("saved"); }
+      });
+    }).catch(function () { note("kept in this browser"); });
+  }
+
+  /* ------------------------------------------------------------- input --- */
+
+  document.addEventListener("click", function (e) {
+    var tab = e.target.closest ? e.target.closest(".tab") : null;
+    if (tab) { state.tab = tab.getAttribute("data-game"); render(); save(); return; }
+
+    var move = e.target.closest ? e.target.closest("[data-move]") : null;
+    if (move) { play2048(move.getAttribute("data-move")); return; }
+
+    var t = e.target.closest ? e.target.closest("[data-t]") : null;
+    if (t) { playTetris(t.getAttribute("data-t")); return; }
+
+    var key = e.target.closest ? e.target.closest("[data-key]") : null;
+    if (key) { typeKey(key.getAttribute("data-key")); return; }
+
+    if (e.target.id === "new-2048") { state.g2048 = new2048(state.g2048.best); render(); save(); }
+    if (e.target.id === "new-tetris") { state.tetris = newTetris(state.tetris.best); render(); save(); }
+  });
+
+  function typeKey(value) {
+    var s = state.word;
+    if (value === "enter") { submitGuess(); return; }
+    if (wordDone(s)) return;
+    if (value === "back") { s.typing = s.typing.slice(0, -1); render(); return; }
+    if (s.typing.length < LEN) { s.typing += value; render(); }
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var k = e.key;
+
+    if (state.tab === "word") {
+      if (k === "Enter") { e.preventDefault(); typeKey("enter"); }
+      else if (k === "Backspace") { e.preventDefault(); typeKey("back"); }
+      else if (/^[a-zA-Z]$/.test(k)) { e.preventDefault(); typeKey(k.toUpperCase()); }
+      return;
+    }
+
+    if (state.tab === "2048") {
+      var dir = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", w: "up", s: "down", a: "left", d: "right", W: "up", S: "down", A: "left", D: "right" }[k];
+      if (dir) { e.preventDefault(); play2048(dir); }
+      return;
+    }
+
+    var act = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "rotate", ArrowDown: "drop", a: "left", d: "right", w: "rotate", s: "drop", A: "left", D: "right", W: "rotate", S: "drop", " ": "drop" }[k];
+    if (act) { e.preventDefault(); playTetris(act); }
+  });
+})();
+</script>
+</body>
+</html>

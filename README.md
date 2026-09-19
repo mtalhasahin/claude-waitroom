@@ -111,6 +111,11 @@ claude --plugin-dir /path/to/claude-waitroom
 
 That form watches the folder, so saving a file reloads the hooks module.
 
+Then **quit Claude completely and reopen it**, and start a session **in a terminal**. From there it
+needs nothing else: five seconds into every turn the pane opens on its own, and `/wait` changes what
+is in it. In the desktop app the plugin loads and counts your waits but cannot draw — *Surfaces*
+below says why, and gives you a status line and a page to use instead.
+
 ---
 
 ## Commands
@@ -219,12 +224,19 @@ scene can move. `statusline/waitroom-line.mjs` draws the garden or the swimming 
 }
 ```
 
+An installed plugin keeps its files under a version-pinned path —
+`~/.claude/plugins/cache/waitroom/waitroom/<version>/statusline/waitroom-line.mjs` — which moves
+every time the plugin updates. Point the setting at a clone of this repo instead, and the line
+survives upgrades.
+
 The plugin stays the brain — it is the thing that knows a turn began and ended — and this is the
 display. It is a plain program, not part of the plugin: it reads one file, the plugin store, and
 writes nothing. The plugin’s own promise to touch no files is unaffected.
 
-**A page.** The three games also exist as a standalone page with real graphics and a real keyboard,
-where there is no wait to spend and you play as long as you like.
+**A page.** `web/index.html` is the three games as one self-contained page — real graphics, a real
+keyboard, and no wait to spend, so you play as long as you like. No build and no server: open the
+file, or put it anywhere that serves static files. Keep it open beside Claude and switch to it while
+a turn runs. Scores live in that browser.
 
 ## How it is put together
 
