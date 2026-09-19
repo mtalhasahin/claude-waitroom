@@ -14,8 +14,36 @@ describe('readConfig', () => {
   });
 
   test('a good record is read back whole', () => {
-    const stored = { enabled: false, mode: 'game', game: 'word', scene: 'aquarium', delay: 0, spinner: false, keepOpen: true };
+    const stored = {
+      enabled: false,
+      mode: 'game',
+      game: 'word',
+      scene: 'aquarium',
+      delay: 0,
+      spinner: false,
+      keepOpen: true,
+      page: 'https://example.com/waitroom',
+    };
     expect(readConfig(stored)).toEqual(stored);
+  });
+
+  test('a page is re-checked on the way out of the store, not only on the way in', () => {
+    // It ends up in an argv, and the store is a file on disk that something
+    // else could have written.
+    expect(readConfig({ page: 'https://example.com/x' }).page).toBe('https://example.com/x');
+    expect(readConfig({ page: 'file:///C:/waitroom/index.html' }).page).toBe('file:///C:/waitroom/index.html');
+    for (const bad of [
+      'javascript:alert(1)',
+      'data:text/html,<script>',
+      'cmd.exe',
+      'https://example.com/a b',
+      '',
+      42,
+      null,
+      { url: 'https://example.com' },
+    ]) {
+      expect(readConfig({ page: bad }).page).toBe('');
+    }
   });
 
   test('one bad field falls back alone, the rest survive', () => {

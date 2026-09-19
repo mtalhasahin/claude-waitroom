@@ -16,14 +16,15 @@
  *   and passed explicitly, so there are no module-level mutable globals and a
  *   module reload starts clean.
  *
- * Capabilities used: `ui`, `store`, `clock`, `command`. Nothing else — no
- * `fs`, no `http`, no `process`, no `model`, no `agent`, no `tool`, no `mcp`,
- * no `prompt`. See the README's zero-token notes.
+ * Capabilities used: `ui`, `store`, `clock`, `command`, and — only when the
+ * person has set a `page` — `env` and `process` to open it in their browser.
+ * Nothing else: no `fs`, no `http`, no `model`, no `agent`, no `tool`, no
+ * `mcp`, no `prompt`. See the README's zero-token notes.
  */
 
 import type { EngineInterface, Register, RenderInputOf, RenderSurface, Timer } from 'claude-code';
 
-import { HELP_LINES, applyCommand, type Config, type PaneView } from './core/config';
+import { HELP_LINES, applyCommand, isPage, type Config, type PaneView } from './core/config';
 import { DEFAULT_PERSISTED, STORE_KEY, readPersisted, resetProgress, type Persisted } from './core/state';
 import * as tetris from './games/tetris';
 import * as g2048 from './games/g2048';
@@ -67,6 +68,8 @@ type Room = {
   notice: string | undefined;
   /** Set while a Word round has just ended, so the answer may be shown. */
   reveal: boolean;
+  /** True once the configured page has been opened for this session. */
+  openedPage: boolean;
 };
 
 function newRoom(): Room {
@@ -78,6 +81,7 @@ function newRoom(): Room {
     movesLeft: 0,
     notice: undefined,
     reveal: false,
+    openedPage: false,
   };
 }
 
@@ -94,6 +98,40 @@ function spendMove(room: Room): boolean {
   if (room.movesLeft <= 0) return false;
   room.movesLeft--;
   return true;
+}
+
+/**
+ * Opens the configured page in the person's browser, once a session.
+ *
+ * This is the one thing here that leaves the plugin's own world, and it exists
+ * for one reason: the desktop app draws no plugin UI, so a page beside Claude is
+ * the only way anything can be there without being asked for. With no `page`
+ * configured — the default — nothing below ever runs.
+ *
+ * The URL was checked against `isPage` before it was stored and again when it
+ * was read back, and it goes into an argv, never a shell.
+ */
+async function openPage($: EngineInterface, room: Room): Promise<void> {
+  const page = configOf(room).page;
+  if (!page || room.openedPage || !isPage(page)) return;
+  room.openedPage = true;
+
+  // There is no platform noun on `$`, and Windows is the one that sets OS.
+  const os = await $.env.get('OS').catch(() => undefined);
+
+  // `start`'s first quoted argument is the window title, not the URL: leaving
+  // it out makes a URL in quotes the title and opens nothing.
+  const first = os === 'Windows_NT' ? ['cmd', '/c', 'start', '', page] : ['open', page];
+
+  try {
+    const done = await $.process.run(first, { timeoutMs: 10_000 });
+    // macOS has `open`; most Linux desktops have `xdg-open` instead.
+    if (done.exitCode !== 0 && os !== 'Windows_NT') {
+      await $.process.run(['xdg-open', page], { timeoutMs: 10_000 });
+    }
+  } catch {
+    $.ui.toast('waitroom: could not open that page', { timeoutMs: 6000 });
+  }
 }
 
 /** A one-line reason from whatever was thrown, for a toast. */
@@ -465,6 +503,8 @@ export const register: Register = (on) => {
     room.reveal = false;
     room.notice = undefined;
     if (!configOf(room).enabled) return next(e);
+
+    void openPage($, room);
 
     const delay = configOf(room).delay;
     room.openTimer?.cancel();

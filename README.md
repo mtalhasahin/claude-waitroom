@@ -60,12 +60,15 @@ which reports, for this plugin:
 ```
 hooks: session.start, command.run{command=wait}, turn.start, turn.complete,
        ui.close{id=waitroom}, ui.render{component=Spinner}, ui.render{component=Pane}
-calls: $.clock.after, $.command.register, $.store.get, $.store.set,
-       $.ui.close, $.ui.invalidate, $.ui.open, $.ui.resolve, $.ui.toast
+calls: $.clock.after, $.command.register, $.env.get, $.process.run,
+       $.store.get, $.store.set, $.ui.close, $.ui.invalidate, $.ui.open,
+       $.ui.resolve, $.ui.toast
 ```
 
-No `fs`, no `http`, no `process`, no `model`, no `agent`, no `tool`, no `mcp`, no `prompt`. It does
-not touch your files and it does not touch the network — the word list is a constant in the repo.
+No `fs`, no `http`, no `model`, no `agent`, no `tool`, no `mcp`, no `prompt`. It does not touch your
+files and it does not touch the network — the word list is a constant in the repo. `$.env.get` reads
+one name, `OS`, and `$.process.run` opens the page you set with `/wait page`; with no page set
+— the default — neither is ever called. *Surfaces* below says why that exists.
 The scan is mechanical: a hooks module that reaches `$` dynamically fails to load at all, so this
 list cannot be evaded.
 
@@ -114,7 +117,7 @@ That form watches the folder, so saving a file reloads the hooks module.
 Then **quit Claude completely and reopen it**, and start a session **in a terminal**. From there it
 needs nothing else: five seconds into every turn the pane opens on its own, and `/wait` changes what
 is in it. In the desktop app the plugin loads and counts your waits but cannot draw — *Surfaces*
-below says why, and gives you a status line and a page to use instead.
+below says why, and `/wait page` is what you get there instead.
 
 ---
 
@@ -129,10 +132,11 @@ below says why, and gives you a status line and a page to use instead.
 | `/wait delay <seconds>` | how long after a turn starts before the pane opens (`0` = at once) |
 | `/wait spinner on\|off` | write a one-line status into the spinner |
 | `/wait keep on\|off` | leave the pane up after the turn ends |
+| `/wait page <url>` · `/wait page off` | open a page in your browser on the session's first turn |
 | `/wait reset` | clear game and scene progress (asks first) |
 | `/wait help` | the list above, in a pane |
 
-Defaults: `enabled`, scene mode, `garden`, `delay 5`, `spinner on`, `keep off`.
+Defaults: `enabled`, scene mode, `garden`, `delay 5`, `spinner on`, `keep off`, no page.
 
 The command is registered `immediate`, so it works mid-turn.
 
@@ -213,8 +217,20 @@ desktop app accepts `statusLine` in settings and never runs the command — no p
 nothing appears. The plugin's drawing and the status line are both things the app would have to
 render, and it renders neither.
 
-What is left is the page below. On the desktop, keep it open beside Claude and switch to it while a
-turn runs; everything automatic needs a terminal.
+What is left is a page beside Claude, and one thing the plugin can still do for you there:
+
+```
+/wait page https://example.com/your-waitroom
+```
+
+With a page set, the first turn of each session opens it in your browser and the rest leave it
+alone — so it is there once you start working, without a window in your face every time you press
+Enter. `/wait page off` clears it.
+
+**This is the one thing that reaches outside the plugin's own world**, and it is off until you ask
+for it. With no page set — the default — `$.process.run` is never called. The URL is checked when
+it is stored and again when it is read back (only `http`, `https` and `file`, no whitespace), and it
+goes into an argument vector, never a shell.
 
 **A status line, in the terminal.** `statusLine` in `~/.claude/settings.json` is a different road —
 the engine runs a command and shows what it prints — and `refreshInterval` re-runs it on a timer, so

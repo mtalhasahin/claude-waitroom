@@ -26,6 +26,14 @@ export type Config = {
   spinner: boolean;
   /** Whether the pane stays up after the turn ends (§12.4). */
   keepOpen: boolean;
+  /**
+   * A page to open in the browser once per session, when the first turn starts.
+   *
+   * Empty by default, and empty means the plugin never starts a process at all.
+   * It exists because the desktop app draws no plugin UI: a page opened beside
+   * Claude is the only thing that can be there without being asked for.
+   */
+  page: string;
 };
 
 export const GAMES: readonly GameName[] = ['tetris', '2048', 'word'];
@@ -39,10 +47,27 @@ export const DEFAULT_CONFIG: Config = {
   delay: 5,
   spinner: true,
   keepOpen: false,
+  page: '',
 };
+
+/**
+ * What a `page` may look like.
+ *
+ * The value is stored data that ends up in an argv, so it is checked on the way
+ * in rather than trusted on the way out: a web page or a local file, nothing
+ * else, and no whitespace to split on.
+ */
+export const PAGE_PATTERN = /^(?:https?|file):\/\/\S+$/i;
+
+/** The longest a `page` may be, so the store stays small and the argv sane. */
+export const MAX_PAGE = 2048;
 
 /** The longest a `delay` may be, so a typo cannot park the pane forever. */
 export const MAX_DELAY = 600;
+
+/** True when `page` is something the plugin is willing to hand to the host. */
+export const isPage = (value: string): boolean =>
+  value.length > 0 && value.length <= MAX_PAGE && PAGE_PATTERN.test(value);
 
 export type CommandOutcome = {
   /** The config as the command leaves it; the same object when nothing changed. */
@@ -85,9 +110,13 @@ export function statusLine(config: Config): string {
  * understand asks for the help view rather than guessing.
  */
 export function applyCommand(config: Config, rawArgs: string): CommandOutcome {
-  const words = rawArgs.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const spelled = rawArgs.trim().split(/\s+/).filter(Boolean);
+  const words = spelled.map((word) => word.toLowerCase());
   const verb = words[0];
   const arg = words[1];
+  // A URL is not a keyword: its path and query can be case-sensitive, so the
+  // `page` argument is read as the person typed it.
+  const typed = spelled[1];
 
   const same: CommandOutcome = { config, changed: false };
   const set = (patch: Partial<Config>, toast: string): CommandOutcome => {
@@ -135,6 +164,17 @@ export function applyCommand(config: Config, rawArgs: string): CommandOutcome {
       return set({ keepOpen: flag }, `waitroom: ${flag ? 'stays open after the turn' : 'closes when the turn ends'}`);
     }
 
+    case 'page': {
+      if (typed === undefined) {
+        return { ...same, toast: config.page ? `waitroom: opens ${config.page}` : 'waitroom: no page set' };
+      }
+      if (arg === 'off' || arg === 'none') {
+        return config.page ? set({ page: '' }, 'waitroom: no page') : { ...same, toast: 'waitroom: no page set' };
+      }
+      if (!isPage(typed)) return { ...same, view: 'help' };
+      return set({ page: typed }, 'waitroom: opens that page once a session');
+    }
+
     case 'reset':
       return { config, changed: false, view: 'reset' };
 
@@ -155,6 +195,7 @@ export const HELP_LINES: readonly (readonly [string, string])[] = [
   ['/wait delay <seconds>', 'how long before it opens (0 = at once)'],
   ['/wait spinner on|off', 'write a status line into the spinner'],
   ['/wait keep on|off', 'stay open after the turn ends'],
+  ['/wait page <url> | off', 'open a page in the browser, once a session'],
   ['/wait reset', 'clear game and scene progress'],
   ['/wait help', 'this list'],
 ];

@@ -8,7 +8,7 @@
  * their progress at worst and never breaks the session.
  */
 
-import { DEFAULT_CONFIG, GAMES, MAX_DELAY, SCENES, type Config, type GameName, type SceneName } from './config';
+import { DEFAULT_CONFIG, GAMES, MAX_DELAY, SCENES, isPage, type Config, type GameName, type SceneName } from './config';
 import { CELLS as T_CELLS, type Piece, type TetrisState } from '../games/tetris';
 import { CELLS as G_CELLS, type G2048State } from '../games/g2048';
 import { LENGTH, TRIES, type WordState } from '../games/word';
@@ -83,6 +83,9 @@ export function readConfig(raw: unknown): Config {
     delay: count(raw['delay'], DEFAULT_CONFIG.delay, MAX_DELAY),
     spinner: bool(raw['spinner'], DEFAULT_CONFIG.spinner),
     keepOpen: bool(raw['keepOpen'], DEFAULT_CONFIG.keepOpen),
+    // Checked again on the way out of the store, not only on the way in: this
+    // one ends up in an argv, and the store is a file on disk.
+    page: typeof raw['page'] === 'string' && isPage(raw['page']) ? raw['page'] : '',
   };
 }
 

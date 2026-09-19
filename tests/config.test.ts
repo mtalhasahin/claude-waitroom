@@ -152,6 +152,49 @@ describe('spinner and keep', () => {
   });
 });
 
+describe('page', () => {
+  test('a http or https page is taken', () => {
+    expect(run('page https://claude.ai/artifact/abc').config.page).toBe('https://claude.ai/artifact/abc');
+    expect(run('page http://localhost:8080/waitroom').config.page).toBe('http://localhost:8080/waitroom');
+  });
+
+  test('a local file is taken', () => {
+    const url = 'file:///C:/Users/me/claude-waitroom/web/index.html';
+    expect(run(`page ${url}`).config.page).toBe(url);
+  });
+
+  test('the URL keeps the case it was typed in', () => {
+    // Lower-casing the argument, as every other subcommand does, would break
+    // any path or query that is case-sensitive.
+    const url = 'https://Claude.ai/artifact/NeiY9GN36w9upyL1zV5Wip';
+    expect(run(`page ${url}`).config.page).toBe(url);
+  });
+
+  test('anything that is not a web page or a file is refused', () => {
+    for (const bad of ['javascript:alert(1)', 'data:text/html,x', 'cmd.exe', 'ftp://example.com/x', '/etc/passwd', 'example.com']) {
+      const out = run(`page ${bad}`);
+      expect(out.view).toBe('help');
+      expect(out.changed).toBe(false);
+    }
+  });
+
+  test('off clears it', () => {
+    const withPage = { ...base, page: 'https://example.com/x' };
+    expect(run('page off', withPage).config.page).toBe('');
+    expect(run('page none', withPage).config.page).toBe('');
+  });
+
+  test('with no argument it reports rather than changing anything', () => {
+    expect(run('page').changed).toBe(false);
+    expect(run('page').toast).toContain('no page');
+    expect(run('page', { ...base, page: 'https://example.com/x' }).toast).toContain('https://example.com/x');
+  });
+
+  test('the default is empty, so a fresh install starts no process at all', () => {
+    expect(DEFAULT_CONFIG.page).toBe('');
+  });
+});
+
 describe('reset and help', () => {
   test('reset asks for the confirmation view and changes nothing by itself', () => {
     const out = run('reset');
@@ -170,7 +213,7 @@ describe('reset and help', () => {
 
   test('the help text covers every subcommand the parser knows', () => {
     const shown = HELP_LINES.map(([command]) => command).join(' ');
-    for (const verb of ['on', 'off', 'scene', 'game', 'delay', 'spinner', 'keep', 'reset', 'help']) {
+    for (const verb of ['on', 'off', 'scene', 'game', 'delay', 'spinner', 'keep', 'page', 'reset', 'help']) {
       expect(shown).toContain(verb);
     }
   });
