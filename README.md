@@ -208,11 +208,18 @@ strings around them are plentiful. Every channel a plugin has for showing someth
 that protocol, toasts and status lines included, so hooks fire and `$.store` fills up while nothing
 is drawn. Nothing here can fix it; the plugin should start working unchanged when the app ships it.
 
-Two ways around it in the meantime:
+A status line is **not** the way around it, though the settings schema makes it look like one: the
+desktop app accepts `statusLine` in settings and never runs the command — no process is spawned and
+nothing appears. The plugin's drawing and the status line are both things the app would have to
+render, and it renders neither.
 
-**A status line.** `statusLine` in `~/.claude/settings.json` is a different road entirely — the
-engine runs a command and shows what it prints — and `refreshInterval` re-runs it on a timer, so the
-scene can move. `statusline/waitroom-line.mjs` draws the garden or the swimming tank as one line:
+What is left is the page below. On the desktop, keep it open beside Claude and switch to it while a
+turn runs; everything automatic needs a terminal.
+
+**A status line, in the terminal.** `statusLine` in `~/.claude/settings.json` is a different road —
+the engine runs a command and shows what it prints — and `refreshInterval` re-runs it on a timer, so
+the scene can move. Beside the pane it is a second, quieter view of the same progress.
+`statusline/waitroom-line.mjs` draws the garden or the swimming tank as one line:
 
 ```json
 {
