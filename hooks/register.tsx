@@ -96,6 +96,13 @@ function spendMove(room: Room): boolean {
   return true;
 }
 
+/** A one-line reason from whatever was thrown, for a toast. */
+function describe(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'string' && error) return error;
+  return 'no reason given';
+}
+
 /* ------------------------------------------------------------- engine calls */
 
 /** Writes the state back. Failures are swallowed: a lost save must not break a turn. */
@@ -112,9 +119,18 @@ async function openPane($: EngineInterface, room: Room, view: PaneView): Promise
   // `help` and `reset` answer something the person typed, so they open as a
   // dialog: focused, closable with Escape, and placed at any width.
   const asDialog = view !== 'play';
-  await $.ui
-    .open(asDialog ? { id: PANE_ID, title: TITLE, focus: true, closeOnEscape: true, rows: 14 } : { id: PANE_ID, title: TITLE })
-    .catch(() => undefined);
+  try {
+    await $.ui.open(
+      asDialog ? { id: PANE_ID, title: TITLE, focus: true, closeOnEscape: true, rows: 14 } : { id: PANE_ID, title: TITLE },
+    );
+  } catch (error) {
+    // A refused open is the one failure that looks exactly like the plugin
+    // doing nothing, so it says so rather than passing unnoticed. A toast
+    // leaves the transcript and the model untouched.
+    room.isOpen = false;
+    $.ui.toast(`waitroom: the pane was refused — ${describe(error)}`, { timeoutMs: 8000 });
+    return;
+  }
   room.isOpen = true;
   redraw($);
 }
