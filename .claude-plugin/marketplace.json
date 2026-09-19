@@ -1,0 +1,26 @@
+{
+  "name": "waitroom",
+  "owner": {
+    "name": "mtalhasahin"
+  },
+  "plugins": [
+    {
+      "name": "waitroom",
+      "source": "./",
+      "description": "Turn-based games and calm scenes in a pane while Claude works. Zero model tokens.",
+      "version": "0.1.0",
+      "license": "MIT",
+      "keywords": [
+        "waiting",
+        "games",
+        "tetris",
+        "2048",
+        "wordle",
+        "pane",
+        "function-hooks",
+        "mod"
+      ]
+    }
+  ],
+  "description": "Waitroom: turn-based games and calm scenes for the pane while Claude works."
+}
