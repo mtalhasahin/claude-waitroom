@@ -294,9 +294,10 @@ function controlsFor($: EngineInterface, room: Room): readonly Control[] {
 }
 
 /** Desktop, VS Code and mobile: one `Svg` plus sibling controls. */
-function drawVector($: EngineInterface, room: Room, e: Surfaced<'desktop'>) {
+function drawVector($: EngineInterface, room: Room, e: Surfaced<'desktop'>, hasInput: boolean) {
   const { Box, Text, Button, Input, Svg } = $.ui.resolve(e);
   const c = configOf(room);
+  const wantsGuess = c.mode === 'game' && c.game === 'word';
 
   if (room.view === 'help') {
     return (
@@ -345,7 +346,7 @@ function drawVector($: EngineInterface, room: Room, e: Surfaced<'desktop'>) {
           ))}
         </Box>
       ) : null}
-      {c.mode === 'game' && c.game === 'word' ? (
+      {wantsGuess && hasInput ? (
         <Input
           key="guess"
           label="guess"
@@ -354,6 +355,10 @@ function drawVector($: EngineInterface, room: Room, e: Surfaced<'desktop'>) {
           onSubmit={(value) => playWord($, room, value)}
         />
       ) : null}
+      {/* Mobile draws no `Input`: the board still reads, but a guess needs a
+          surface with a text field, and an Input drawn here would make the
+          whole tree invalid and the pane blank. */}
+      {wantsGuess && !hasInput ? <Text dimColor>guessing needs a surface with a text field</Text> : null}
       {room.notice ? <Text dimColor>{room.notice}</Text> : null}
     </Box>
   );
@@ -519,6 +524,9 @@ export const register: Register = (on) => {
 
   on('ui.render', { component: 'Pane' }, ($, e, next) => {
     if (e.requestId !== PANE_ID) return next(e);
-    return e.surface === 'terminal' ? drawTerminal($, room, e) : drawVector($, room, e as Surfaced<'desktop'>);
+    if (e.surface === 'terminal') return drawTerminal($, room, e);
+    // Mobile's table carries no `Input` (the control protocol has no ui_input
+    // yet), so the vector tree is drawn without one there.
+    return drawVector($, room, e as Surfaced<'desktop'>, e.surface !== 'mobile');
   });
 };

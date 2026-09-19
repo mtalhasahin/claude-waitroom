@@ -122,3 +122,45 @@ describe('the spinner line', () => {
     expect(String(seen)).toContain('flowers');
   });
 });
+
+/** What the engine fills in when the person types a command. */
+const asTyped = {
+  origin: { kind: 'composer' } as const,
+  presentation: { isFullscreen: false, columns: 100 },
+};
+
+describe('mobile', () => {
+  test('the Word board draws there, without the text field mobile has no element for', async ($) => {
+    await $.ui.render({
+      component: 'Pane',
+      surface: 'desktop',
+      requestId: 'waitroom',
+      props: paneProps(),
+    });
+
+    // Switch to Word, which is the only mode that wants an `Input`.
+    await $.command.run({ command: 'wait', args: 'game word', ...asTyped });
+
+    const drawn = await $.ui.render({
+      component: 'Pane',
+      surface: 'mobile',
+      requestId: 'waitroom',
+      props: paneProps(),
+    });
+
+    const names = namesIn(drawn);
+    expect(names).toContain('Svg');
+    expect(names).not.toContain('Input');
+
+    // And the surfaces that do have one still draw it.
+    const onDesktop = await $.ui.render({
+      component: 'Pane',
+      surface: 'desktop',
+      requestId: 'waitroom',
+      props: paneProps(),
+    });
+    expect(namesIn(onDesktop)).toContain('Input');
+
+    await $.command.run({ command: 'wait', args: 'scene garden', ...asTyped });
+  });
+});

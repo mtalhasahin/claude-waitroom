@@ -8,7 +8,7 @@
       "name": "waitroom",
       "source": "./",
       "description": "Turn-based games and calm scenes in a pane while Claude works. Zero model tokens.",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "license": "MIT",
       "keywords": [
         "waiting",
