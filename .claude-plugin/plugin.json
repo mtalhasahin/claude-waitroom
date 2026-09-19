@@ -1,10 +1,21 @@
 {
   "name": "waitroom",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Turn-based games and calm scenes in a pane while Claude works. Zero model tokens. Needs function hooks (early access) and Claude Desktop 2.1.269+.",
-  "author": { "name": "mtalhasahin" },
+  "author": {
+    "name": "mtalhasahin"
+  },
   "homepage": "https://github.com/mtalhasahin/claude-waitroom",
   "repository": "https://github.com/mtalhasahin/claude-waitroom",
   "license": "MIT",
-  "keywords": ["waiting", "games", "tetris", "2048", "wordle", "pane", "function-hooks", "mod"]
+  "keywords": [
+    "waiting",
+    "games",
+    "tetris",
+    "2048",
+    "wordle",
+    "pane",
+    "function-hooks",
+    "mod"
+  ]
 }
