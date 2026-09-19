@@ -73,10 +73,11 @@ list cannot be evaded.
 
 ## Requirements
 
-- **Claude Desktop 2.1.269 or newer.** Function hooks live in the desktop app's own bundle, not in
-  the global npm CLI. Built and tested against **2.1.275**.
+- **Claude Code 2.1.269 or newer.** Function hooks live in the desktop app's own bundle, not in the
+  global npm CLI. Built against **2.1.275**, run against **2.1.278**.
 - **Function hooks turned on** — they are early access and off by default.
-- Desktop is the primary target. The terminal, VS Code and mobile draw too (see *Surfaces*).
+- **A terminal.** That is where the pane draws today; the desktop app cannot yet, and *Surfaces*
+  below says why and what to do instead.
 
 ### Turning function hooks on
 
@@ -179,15 +180,51 @@ than down — a countdown to a moment nobody can predict reads as a broken promi
 
 | Surface | How it draws |
 |---|---|
-| **Desktop** | one `Svg` plus buttons — the primary target |
-| VS Code | the same; the surface has `Svg` too |
-| Mobile | the same drawing; no text input, so Word is read-only there |
-| Terminal | no `Svg` exists there, so the same states are drawn as rows of text |
+| **Terminal** | one `Pane`, drawn by the engine itself as character cells — works today |
+| Desktop | the app does not implement the plugin render protocol yet (see below) |
+| VS Code | the surface has `Svg`; untested, and it needs an extension new enough for function hooks |
+| Mobile | the same drawing, without the text field mobile has no element for |
 
 `AbovePrompt` is not used anywhere. It is documented as *"one instance, terminal only"*, and on the
 desktop app that band does not exist at all — which is why this plugin is built on `Pane`.
 
----
+### Why the desktop app draws nothing, and what to do about it
+
+The engine declares `Pane` for the `desktop` surface, and the tree this plugin returns is valid
+there — `tests/pane.test.ts` renders it through the real `ui.render` chain and finds the `Svg`.
+What is missing is the other half. The declarations put it plainly: the terminal is Ink, *"the rest
+are remote surfaces drawing it themselves"*. So on the terminal the engine draws the pane into
+character cells and the app only shows them; on the desktop the engine merely describes the pane
+over the wire and the app must draw it.
+
+Claude Desktop 2.2553.1.0 does not: its bundle carries `session.start`, `turn.complete` and
+`command.run`, but no `ui_render`, `ui_open`, `ui_press`, `ui_input` or `ui_log` — while control
+strings around them are plentiful. Every channel a plugin has for showing something goes through
+that protocol, toasts and status lines included, so hooks fire and `$.store` fills up while nothing
+is drawn. Nothing here can fix it; the plugin should start working unchanged when the app ships it.
+
+Two ways around it in the meantime:
+
+**A status line.** `statusLine` in `~/.claude/settings.json` is a different road entirely — the
+engine runs a command and shows what it prints — and `refreshInterval` re-runs it on a timer, so the
+scene can move. `statusline/waitroom-line.mjs` draws the garden or the swimming tank as one line:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "node /path/to/claude-waitroom/statusline/waitroom-line.mjs",
+    "refreshInterval": 1
+  }
+}
+```
+
+The plugin stays the brain — it is the thing that knows a turn began and ended — and this is the
+display. It is a plain program, not part of the plugin: it reads one file, the plugin store, and
+writes nothing. The plugin’s own promise to touch no files is unaffected.
+
+**A page.** The three games also exist as a standalone page with real graphics and a real keyboard,
+where there is no wait to spend and you play as long as you like.
 
 ## How it is put together
 

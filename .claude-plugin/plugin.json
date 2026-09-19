@@ -1,6 +1,6 @@
 {
   "name": "waitroom",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "Turn-based games and calm scenes in a pane while Claude works. Zero model tokens. Needs function hooks (early access) and Claude Desktop 2.1.269+.",
   "author": {
     "name": "mtalhasahin"
